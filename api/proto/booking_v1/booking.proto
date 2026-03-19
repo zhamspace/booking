@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package booking_v1.booking;
+
+import "common/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "/booking_v1";
+
+service Booking {
+  rpc List(BookingListReq) returns (BookingListRep) {
+    option (google.api.http) = {
+      get: "/bookings"
+    };
+  };
+
+  rpc Get(BookingGetReq) returns (BookingMain) {
+    option (google.api.http) = {
+      get: "/bookings/{id}"
+    };
+  };
+
+  rpc Create(BookingCreateReq) returns (BookingMain) {
+    option (google.api.http) = {
+      post: "/bookings"
+      body: "*"
+    };
+  };
+
+  rpc Confirm(BookingConfirmReq) returns (BookingMain) {
+    option (google.api.http) = {
+      post: "/bookings/{id}/confirm"
+      body: "*"
+    };
+  };
+
+  rpc Cancel(BookingCancelReq) returns (BookingMain) {
+    option (google.api.http) = {
+      post: "/bookings/{id}/cancel"
+      body: "*"
+    };
+  };
+}
+
+message BookingMain {
+  string id = 1;
+  string venue_id = 2;
+  string resource_id = 3;
+  optional string session_id = 4;
+  string user_id = 5;
+  string status = 6;
+  string payment_status = 7;
+  int64 price_total = 8;
+  string currency = 9;
+  google.protobuf.Timestamp start_at = 10;
+  google.protobuf.Timestamp end_at = 11;
+  string timezone = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+  optional google.protobuf.Timestamp hold_expires_at = 15;
+  optional string payment_intent_id = 16;
+  optional string cancel_reason = 17;
+  optional google.protobuf.Timestamp cancelled_at = 18;
+  optional google.protobuf.Timestamp confirmed_at = 19;
+  optional google.protobuf.Timestamp completed_at = 20;
+}
+
+message BookingListReq {
+  common.ListParamsSt list_params = 1;
+
+  repeated string ids = 2;
+  optional string venue_id = 3;
+  optional string resource_id = 4;
+  optional string user_id = 5;
+  optional string session_id = 6;
+  optional string status = 7;
+  optional string payment_status = 8;
+  optional google.protobuf.Timestamp from = 9;
+  optional google.protobuf.Timestamp to = 10;
+  bool include_cancelled = 11;
+}
+
+message BookingListRep {
+  common.PaginationInfoSt pagination_info = 1;
+  repeated BookingMain results = 2;
+}
+
+message BookingGetReq {
+  string id = 1;
+}
+
+message BookingCreateReq {
+  string venue_id = 1;
+  string resource_id = 2;
+  google.protobuf.Timestamp start_at = 3;
+  google.protobuf.Timestamp end_at = 4;
+  string timezone = 5;
+  optional string session_id = 6;
+  optional string user_id = 7;
+  optional int64 price_total = 8;
+  optional string currency = 9;
+  optional string price_quote_id = 10;
+  optional string idempotency_key = 11;
+  optional string note = 12;
+}
+
+message BookingConfirmReq {
+  string id = 1;
+  optional string payment_intent_id = 2;
+  optional string idempotency_key = 3;
+}
+
+message BookingCancelReq {
+  string id = 1;
+  optional string reason = 2;
+  optional bool refund_requested = 3;
+  optional string idempotency_key = 4;
+}

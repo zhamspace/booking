@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package booking_v1.dict;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option go_package = "/booking_v1";
+
+service Dict {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_tag) = {
+    description: "словарь ключевых значений"
+  };
+
+  rpc Get(google.protobuf.Empty) returns (DictRep) {
+    option (google.api.http) = {
+      get: "/dict"
+    };
+  };
+}
+
+message DictRep {
+  repeated DictIdName legend = 1;
+  repeated DictIdName audit_resources = 2;
+  repeated DictIdName audit_change_type = 3;
+}
+
+message DictIdName {
+  string id = 1;
+  optional string name = 2;
+}
