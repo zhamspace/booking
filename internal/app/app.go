@@ -12,11 +12,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/zhamspace/booking/internal/config"
+	"github.com/zhamspace/booking/internal/constant"
+
 	//domain
 	domainAuditServiceP "github.com/zhamspace/booking/internal/domain/audit"
 	domainAuditRepoDataP "github.com/zhamspace/booking/internal/domain/audit/repo/db"
 	appLogging "github.com/zhamspace/booking/internal/domain/common/logging"
-	"github.com/zhamspace/booking/pkg/proto/booking_v1"
+
+	domainBookingServiceP "github.com/zhamspace/booking/internal/domain/booking"
+	domainBookingRepoDataP "github.com/zhamspace/booking/internal/domain/booking/repo/db"
+	domainBookingRepoMockP "github.com/zhamspace/booking/internal/domain/booking/repo/mock"
 
 	domainDictServiceP "github.com/zhamspace/booking/internal/domain/common/dict"
 	domainDictRepoDataP "github.com/zhamspace/booking/internal/domain/common/dict/repo/data"
@@ -29,6 +35,7 @@ import (
 
 	// usecase
 	usecaseAuditP "github.com/zhamspace/booking/internal/usecase/audit"
+	usecaseBookingP "github.com/zhamspace/booking/internal/usecase/booking"
 	usecaseDictP "github.com/zhamspace/booking/internal/usecase/dict"
 	usecaseSystemP "github.com/zhamspace/booking/internal/usecase/system"
 
@@ -39,8 +46,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 
-	"github.com/zhamspace/booking/internal/config"
-	"github.com/zhamspace/booking/internal/constant"
+	"github.com/zhamspace/booking/pkg/proto/booking_v1"
 )
 
 type App struct {
@@ -65,8 +71,9 @@ func (a *App) Init() {
 
 	// domain
 	var (
-		domainAuditService *domainAuditServiceP.Service
-		domainDictService  *domainDictServiceP.Service
+		domainAuditService   *domainAuditServiceP.Service
+		domainBookingService *domainBookingServiceP.Service
+		domainDictService    *domainDictServiceP.Service
 	)
 
 	// service
@@ -76,8 +83,9 @@ func (a *App) Init() {
 
 	// handlers
 	var (
-		handlerAudit *handlerGrpcP.Audit
-		handlerDict  *handlerGrpcP.Dict
+		handlerAudit   *handlerGrpcP.Audit
+		handlerBooking *handlerGrpcP.Booking
+		handlerDict    *handlerGrpcP.Dict
 
 		handlerHttpSystem *handlerHttpP.System
 	)
@@ -152,6 +160,18 @@ func (a *App) Init() {
 		handlerAudit = handlerGrpcP.NewAudit(usecase, serializer)
 	}
 
+	// booking
+	{
+		repoData := domainBookingRepoDataP.New(a.pgpool)
+		if config.Conf.TestMode {
+			domainBookingService = domainBookingServiceP.New(domainBookingRepoMockP.New())
+		} else {
+			domainBookingService = domainBookingServiceP.New(repoData)
+		}
+		usecase := usecaseBookingP.New(domainAuditService, domainBookingService)
+		handlerBooking = handlerGrpcP.NewBooking(usecase)
+	}
+
 	// http handler
 	{
 		// system
@@ -171,6 +191,7 @@ func (a *App) Init() {
 		a.grpcServer = NewGrpcServer("main", func(server *grpc.Server) {
 			// server registers
 			booking_v1.RegisterAuditServer(server, handlerAudit)
+			booking_v1.RegisterBookingServer(server, handlerBooking)
 			booking_v1.RegisterDictServer(server, handlerDict)
 		})
 	}
@@ -181,6 +202,7 @@ func (a *App) Init() {
 			[]func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error{
 				// server registers
 				booking_v1.RegisterAuditHandler,
+				booking_v1.RegisterBookingHandler,
 				booking_v1.RegisterDictHandler,
 			},
 			[]HttpRoute{

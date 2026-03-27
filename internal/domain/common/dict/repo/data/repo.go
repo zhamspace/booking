@@ -28,6 +28,10 @@ func (r *Repo) Get(_ context.Context) *model.Main {
 			Id:   auditCns.ResourceSystem,
 			Name: "Системные изменения",
 		},
+		{
+			Id:   auditCns.ResourceBooking,
+			Name: "Бронирования",
+		},
 	}
 
 	result.Legend = append(result.Legend, model.DictIdName{
