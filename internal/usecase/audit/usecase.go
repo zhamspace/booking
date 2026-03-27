@@ -45,7 +45,8 @@ func (u *Usecase) List(ctx context.Context, pars *auditModel.ListReq) (_ []*audi
 
 	if pars.Resource != nil {
 		validValues := map[string]struct{}{
-			auditCns.ResourceSystem: {},
+			auditCns.ResourceSystem:  {},
+			auditCns.ResourceBooking: {},
 		}
 		if _, ok := validValues[*pars.Resource]; !ok {
 			fields["resource"] = fmt.Sprintf("invalid resource: %s", *pars.Resource)

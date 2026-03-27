@@ -1,7 +1,8 @@
 package constants
 
 const (
-	ResourceSystem string = "system"
+	ResourceSystem  string = "system"
+	ResourceBooking string = "booking"
 )
 
 const (
