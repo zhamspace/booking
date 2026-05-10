@@ -225,6 +225,21 @@ func (u Usecase) countActiveOverlaps(ctx context.Context, venueID, resourceID st
 	return totalCount, nil
 }
 
+func (u Usecase) Stats(ctx context.Context, req *bookingModel.StatsReq) (*bookingModel.StatsRep, error) {
+	if req == nil {
+		return nil, errs.New(errs.InvalidConfig, "stats params are required", nil)
+	}
+	if len(req.VenueIds) == 0 {
+		return nil, errs.Validation(map[string]string{"venue_ids": "at least one venue_id is required"})
+	}
+
+	rep, err := u.bookingService.Stats(ctx, req)
+	if err != nil {
+		return nil, errs.Wrap(errs.ServiceNA, "failed to compute stats", map[string]string{"method": "bookingService.Stats"}, err)
+	}
+	return rep, nil
+}
+
 func normalizeRequiredString(v *string) string {
 	if v == nil {
 		return ""

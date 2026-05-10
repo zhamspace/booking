@@ -41,6 +41,12 @@ service Booking {
       body: "*"
     };
   };
+
+  rpc Stats(BookingStatsReq) returns (BookingStatsRep) {
+    option (google.api.http) = {
+      get: "/bookings/stats"
+    };
+  };
 }
 
 message BookingMain {
@@ -116,4 +122,25 @@ message BookingCancelReq {
   optional string reason = 2;
   optional bool refund_requested = 3;
   optional string idempotency_key = 4;
+}
+
+message BookingStatsReq {
+  repeated string venue_ids = 1;
+  optional google.protobuf.Timestamp from = 2;
+  optional google.protobuf.Timestamp to = 3;
+}
+
+message BookingStatsRep {
+  int64 total_bookings = 1;
+  int64 confirmed_bookings = 2;
+  int64 cancelled_bookings = 3;
+  int64 total_revenue = 4;
+  string currency = 5;
+  repeated DayStat revenue_by_day = 6;
+  repeated DayStat bookings_by_day = 7;
+}
+
+message DayStat {
+  string date = 1;
+  int64 value = 2;
 }

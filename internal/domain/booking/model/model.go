@@ -74,3 +74,24 @@ type ListReq struct {
 type GetReq struct {
 	Id string
 }
+
+type StatsReq struct {
+	VenueIds []string
+	From     *time.Time
+	To       *time.Time
+}
+
+type DayStat struct {
+	Date  string
+	Value int64
+}
+
+type StatsRep struct {
+	TotalBookings     int64
+	ConfirmedBookings int64
+	CancelledBookings int64
+	TotalRevenue      int64
+	Currency          string
+	RevenueByDay      []DayStat
+	BookingsByDay     []DayStat
+}

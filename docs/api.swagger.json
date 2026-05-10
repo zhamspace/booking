@@ -315,6 +315,54 @@
         ]
       }
     },
+    "/bookings/stats": {
+      "get": {
+        "operationId": "Booking_Stats",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/bookingBookingStatsRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "venue_ids",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          }
+        ],
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
     "/bookings/{id}": {
       "get": {
         "operationId": "Booking_Get",
@@ -669,6 +717,56 @@
         "completed_at": {
           "type": "string",
           "format": "date-time"
+        }
+      }
+    },
+    "bookingBookingStatsRep": {
+      "type": "object",
+      "properties": {
+        "total_bookings": {
+          "type": "string",
+          "format": "int64"
+        },
+        "confirmed_bookings": {
+          "type": "string",
+          "format": "int64"
+        },
+        "cancelled_bookings": {
+          "type": "string",
+          "format": "int64"
+        },
+        "total_revenue": {
+          "type": "string",
+          "format": "int64"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "revenue_by_day": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/bookingDayStat"
+          }
+        },
+        "bookings_by_day": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/bookingDayStat"
+          }
+        }
+      }
+    },
+    "bookingDayStat": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string",
+          "format": "int64"
         }
       }
     },

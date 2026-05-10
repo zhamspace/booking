@@ -161,3 +161,92 @@ func (r *Repo) Delete(ctx context.Context, pars *model.GetReq) (finalError error
 
 	return nil
 }
+
+func (r *Repo) Stats(ctx context.Context, req *model.StatsReq) (_ *model.StatsRep, finalError error) {
+	ctx, span := r.tracer.Start(ctx, "booking.repo.DB.Stats")
+	defer func() {
+		if finalError != nil {
+			span.RecordError(finalError)
+			span.SetStatus(codes.Error, finalError.Error())
+		}
+		span.End()
+	}()
+
+	if len(req.VenueIds) == 0 {
+		return &model.StatsRep{}, nil
+	}
+
+	args := []any{req.VenueIds}
+	fromCond := ""
+	toCond := ""
+	if req.From != nil {
+		args = append(args, *req.From)
+		fromCond = fmt.Sprintf(" AND start_at >= $%d", len(args))
+	}
+	if req.To != nil {
+		args = append(args, *req.To)
+		toCond = fmt.Sprintf(" AND start_at < $%d", len(args))
+	}
+
+	query := fmt.Sprintf(`
+		SELECT
+			COUNT(*) FILTER (WHERE status != 'cancelled') AS total_bookings,
+			COUNT(*) FILTER (WHERE status IN ('confirmed','completed')) AS confirmed_bookings,
+			COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled_bookings,
+			COALESCE(SUM(price_total) FILTER (WHERE status IN ('confirmed','completed')), 0) AS total_revenue,
+			COALESCE(MAX(currency) FILTER (WHERE status IN ('confirmed','completed')), '') AS currency
+		FROM booking
+		WHERE venue_id = ANY($1) %s%s`, fromCond, toCond)
+
+	rep := &model.StatsRep{}
+	err := r.Base.Con.QueryRow(ctx, query, args...).Scan(
+		&rep.TotalBookings,
+		&rep.ConfirmedBookings,
+		&rep.CancelledBookings,
+		&rep.TotalRevenue,
+		&rep.Currency,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("stats query: %w", err)
+	}
+
+	dayArgs := []any{req.VenueIds}
+	dayFromCond := ""
+	dayToCond := ""
+	if req.From != nil {
+		dayArgs = append(dayArgs, *req.From)
+		dayFromCond = fmt.Sprintf(" AND start_at >= $%d", len(dayArgs))
+	}
+	if req.To != nil {
+		dayArgs = append(dayArgs, *req.To)
+		dayToCond = fmt.Sprintf(" AND start_at < $%d", len(dayArgs))
+	}
+
+	dayQuery := fmt.Sprintf(`
+		SELECT
+			start_at::date::text AS date,
+			COUNT(*) FILTER (WHERE status != 'cancelled') AS bookings,
+			COALESCE(SUM(price_total) FILTER (WHERE status IN ('confirmed','completed')), 0) AS revenue
+		FROM booking
+		WHERE venue_id = ANY($1) %s%s
+		GROUP BY start_at::date
+		ORDER BY start_at::date`, dayFromCond, dayToCond)
+
+	rows, err := r.Base.Con.Query(ctx, dayQuery, dayArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("day stats query: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var date string
+		var bookingCount, revenue int64
+		if err := rows.Scan(&date, &bookingCount, &revenue); err != nil {
+			continue
+		}
+		rep.BookingsByDay = append(rep.BookingsByDay, model.DayStat{Date: date, Value: bookingCount})
+		rep.RevenueByDay = append(rep.RevenueByDay, model.DayStat{Date: date, Value: revenue})
+	}
+
+	return rep, nil
+}

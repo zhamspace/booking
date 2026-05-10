@@ -12,4 +12,5 @@ type RepoDbI interface {
 	Create(ctx context.Context, obj *model.Edit) (string, error)
 	Update(ctx context.Context, pars *model.GetReq, obj *model.Edit) error
 	Delete(ctx context.Context, pars *model.GetReq) error
+	Stats(ctx context.Context, req *model.StatsReq) (*model.StatsRep, error)
 }

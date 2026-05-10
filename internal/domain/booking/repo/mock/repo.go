@@ -95,3 +95,8 @@ func (r Repo) Delete(ctx context.Context, pars *bookingModel.GetReq) error {
 	//TODO implement me
 	panic("implement me")
 }
+
+func (r Repo) Stats(ctx context.Context, req *bookingModel.StatsReq) (*bookingModel.StatsRep, error) {
+	//TODO implement me
+	panic("implement me")
+}

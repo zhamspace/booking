@@ -91,3 +91,29 @@ func (h *Booking) Confirm(ctx context.Context, req *booking_v1.BookingConfirmReq
 func (h *Booking) Cancel(ctx context.Context, req *booking_v1.BookingCancelReq) (*booking_v1.BookingMain, error) {
 	return nil, errs.NotImplemented
 }
+
+func (h *Booking) Stats(ctx context.Context, req *booking_v1.BookingStatsReq) (*booking_v1.BookingStatsRep, error) {
+	rep, err := h.bookingUsecase.Stats(ctx, &bookingModel.StatsReq{
+		VenueIds: req.VenueIds,
+		From:     dto.DecodeTimestampPtr(req.From),
+		To:       dto.DecodeTimestampPtr(req.To),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	result := &booking_v1.BookingStatsRep{
+		TotalBookings:     rep.TotalBookings,
+		ConfirmedBookings: rep.ConfirmedBookings,
+		CancelledBookings: rep.CancelledBookings,
+		TotalRevenue:      rep.TotalRevenue,
+		Currency:          rep.Currency,
+	}
+	for _, d := range rep.BookingsByDay {
+		result.BookingsByDay = append(result.BookingsByDay, &booking_v1.DayStat{Date: d.Date, Value: d.Value})
+	}
+	for _, d := range rep.RevenueByDay {
+		result.RevenueByDay = append(result.RevenueByDay, &booking_v1.DayStat{Date: d.Date, Value: d.Value})
+	}
+	return result, nil
+}

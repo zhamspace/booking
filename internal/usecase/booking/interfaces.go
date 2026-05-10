@@ -17,4 +17,5 @@ type ServiceI interface {
 	Create(ctx context.Context, obj *bookingModel.Edit) (string, error)
 	Update(ctx context.Context, pars *bookingModel.GetReq, obj *bookingModel.Edit) error
 	Delete(ctx context.Context, pars *bookingModel.GetReq) error
+	Stats(ctx context.Context, req *bookingModel.StatsReq) (*bookingModel.StatsRep, error)
 }

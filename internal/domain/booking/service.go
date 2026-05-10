@@ -50,3 +50,7 @@ func (s *Service) Update(ctx context.Context, pars *model.GetReq, obj *model.Edi
 func (s *Service) Delete(ctx context.Context, pars *model.GetReq) error {
 	return s.repoDb.Delete(ctx, pars)
 }
+
+func (s *Service) Stats(ctx context.Context, req *model.StatsReq) (*model.StatsRep, error) {
+	return s.repoDb.Stats(ctx, req)
+}
