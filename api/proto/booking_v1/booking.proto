@@ -85,6 +85,8 @@ message BookingListReq {
   optional google.protobuf.Timestamp from = 9;
   optional google.protobuf.Timestamp to = 10;
   bool include_cancelled = 11;
+  /** When non-empty, restricts list to these venues (OR). Takes precedence over venue_id. */
+  repeated string venue_ids = 12;
 }
 
 message BookingListRep {

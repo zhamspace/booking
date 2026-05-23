@@ -278,6 +278,17 @@
             "in": "query",
             "required": false,
             "type": "boolean"
+          },
+          {
+            "name": "venue_ids",
+            "description": "* When non-empty, restricts list to these venues (OR). Takes precedence over venue_id.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [

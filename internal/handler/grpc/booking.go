@@ -2,8 +2,8 @@ package grpc
 
 import (
 	"context"
+	"strings"
 
-	"github.com/zhamspace/booking/internal/errs"
 	"github.com/zhamspace/booking/internal/handler/grpc/dto"
 
 	bookingModel "github.com/zhamspace/booking/internal/domain/booking/model"
@@ -31,10 +31,25 @@ func (h *Booking) List(ctx context.Context, req *booking_v1.BookingListReq) (*bo
 		req.ListParams = &common.ListParamsSt{}
 	}
 
+	filteredVenueIDs := lo.Filter(lo.Map(req.VenueIds, func(s string, _ int) string {
+		return strings.TrimSpace(s)
+	}), func(s string, _ int) bool {
+		return s != ""
+	})
+	var venueIDs *[]string
+	if len(filteredVenueIDs) > 0 {
+		venueIDs = &filteredVenueIDs
+	}
+	var venueID *string
+	if venueIDs == nil {
+		venueID = dto.DecodeOptionalString(req.VenueId)
+	}
+
 	items, totalCount, err := h.bookingUsecase.List(ctx, &bookingModel.ListReq{
 		ListParams:       dto.DecodeListParams(req.ListParams),
 		Ids:              dto.ToSlicePtr(req.Ids),
-		VenueId:          dto.DecodeOptionalString(req.VenueId),
+		VenueId:          venueID,
+		VenueIds:         venueIDs,
 		ResourceId:       dto.DecodeOptionalString(req.ResourceId),
 		UserId:           dto.DecodeOptionalString(req.UserId),
 		SessionId:        dto.DecodeOptionalString(req.SessionId),
@@ -85,11 +100,25 @@ func (h *Booking) Create(ctx context.Context, req *booking_v1.BookingCreateReq) 
 }
 
 func (h *Booking) Confirm(ctx context.Context, req *booking_v1.BookingConfirmReq) (*booking_v1.BookingMain, error) {
-	return nil, errs.NotImplemented
+	item, err := h.bookingUsecase.Confirm(ctx, &bookingModel.ConfirmReq{
+		Id:              req.Id,
+		PaymentIntentId: dto.DecodeOptionalString(req.PaymentIntentId),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return dto.EncodeBookingMain(item, 0), nil
 }
 
 func (h *Booking) Cancel(ctx context.Context, req *booking_v1.BookingCancelReq) (*booking_v1.BookingMain, error) {
-	return nil, errs.NotImplemented
+	item, err := h.bookingUsecase.Cancel(ctx, &bookingModel.CancelReq{
+		Id:     req.Id,
+		Reason: dto.DecodeOptionalString(req.Reason),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return dto.EncodeBookingMain(item, 0), nil
 }
 
 func (h *Booking) Stats(ctx context.Context, req *booking_v1.BookingStatsReq) (*booking_v1.BookingStatsRep, error) {

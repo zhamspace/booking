@@ -41,6 +41,7 @@ import (
 
 	handlerGrpcP "github.com/zhamspace/booking/internal/handler/grpc"
 	handlerHttpP "github.com/zhamspace/booking/internal/handler/http"
+	expiryWorkerP "github.com/zhamspace/booking/internal/worker/expiry"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -57,6 +58,7 @@ type App struct {
 	grpcServer   *GrpcServer
 	httpServer   *GrpcGwServer
 	auditService *domainAuditServiceP.Service
+	expiryWorker *expiryWorkerP.Worker
 
 	ctx       context.Context
 	ctxCancel context.CancelFunc
@@ -87,8 +89,11 @@ func (a *App) Init() {
 		handlerBooking *handlerGrpcP.Booking
 		handlerDict    *handlerGrpcP.Dict
 
-		handlerHttpSystem *handlerHttpP.System
+		handlerHttpSystem   *handlerHttpP.System
+		handlerHttpInternal *handlerHttpP.Internal
 	)
+
+	var bookingUsecase *usecaseBookingP.Usecase
 
 	// logger
 	{
@@ -168,8 +173,10 @@ func (a *App) Init() {
 		} else {
 			domainBookingService = domainBookingServiceP.New(repoData)
 		}
-		usecase := usecaseBookingP.New(domainAuditService, domainBookingService)
-		handlerBooking = handlerGrpcP.NewBooking(usecase)
+		bookingUsecase = usecaseBookingP.New(domainAuditService, domainBookingService)
+		handlerBooking = handlerGrpcP.NewBooking(bookingUsecase)
+		handlerHttpInternal = handlerHttpP.NewInternal(bookingUsecase)
+		a.expiryWorker = expiryWorkerP.New(domainBookingService, 60*time.Second)
 	}
 
 	// http handler
@@ -206,18 +213,23 @@ func (a *App) Init() {
 				booking_v1.RegisterDictHandler,
 			},
 			[]HttpRoute{
-				{Method: http.MethodGet, Path: "/system/ping", Handler: func(w http.ResponseWriter, _ *http.Request, _ map[string]string) {
-					w.WriteHeader(http.StatusOK)
-					_, _ = io.Copy(w, bytes.NewReader([]byte("pong")))
-				}},
-				{Method: http.MethodGet, Path: "/system/migration/up", Handler: handlerHttpSystem.MigrationUp},
-				{Method: http.MethodGet, Path: "/system/migration/down/one", Handler: handlerHttpSystem.MigrationDownOne},
-				{Method: http.MethodGet, Path: "/system/cmd/{num}", Handler: handlerHttpSystem.Command},
-				{Method: http.MethodPost, Path: "/system/log/level", Handler: handlerHttpSystem.SetLogLevel},
-				{Method: http.MethodPost, Path: "/system/log/policy", Handler: handlerHttpSystem.UpdateLogPolicy},
-				{Method: http.MethodDelete, Path: "/system/log/policy/{method}", Handler: handlerHttpSystem.DeleteLogPolicy},
-				{Method: http.MethodPost, Path: "/system/log/default", Handler: handlerHttpSystem.UpdateDefaultLogPolicy},
-			})
+			{Method: http.MethodGet, Path: "/system/ping", Handler: func(w http.ResponseWriter, _ *http.Request, _ map[string]string) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = io.Copy(w, bytes.NewReader([]byte("pong")))
+			}},
+			{Method: http.MethodGet, Path: "/system/migration/up", Handler: handlerHttpSystem.MigrationUp},
+			{Method: http.MethodGet, Path: "/system/migration/down/one", Handler: handlerHttpSystem.MigrationDownOne},
+			{Method: http.MethodGet, Path: "/system/cmd/{num}", Handler: handlerHttpSystem.Command},
+			{Method: http.MethodPost, Path: "/system/log/level", Handler: handlerHttpSystem.SetLogLevel},
+			{Method: http.MethodPost, Path: "/system/log/policy", Handler: handlerHttpSystem.UpdateLogPolicy},
+			{Method: http.MethodDelete, Path: "/system/log/policy/{method}", Handler: handlerHttpSystem.DeleteLogPolicy},
+			{Method: http.MethodPost, Path: "/system/log/default", Handler: handlerHttpSystem.UpdateDefaultLogPolicy},
+			// Internal routes — called by payment service on internal Docker network, no JWT
+			{Method: http.MethodGet, Path: "/internal/bookings/stats", Handler: handlerHttpInternal.Stats},
+			{Method: http.MethodGet, Path: "/internal/bookings/{id}", Handler: handlerHttpInternal.GetBooking},
+			{Method: http.MethodPost, Path: "/internal/bookings/{id}/mark-paid", Handler: handlerHttpInternal.MarkPaid},
+			{Method: http.MethodPost, Path: "/internal/bookings/{id}/mark-failed", Handler: handlerHttpInternal.MarkFailed},
+		})
 		errCheck(err, "NewGrpcGwServer")
 	}
 }
@@ -234,6 +246,10 @@ func (a *App) Start() {
 			slog.Error("auditService.Start", "error", err)
 			a.exitCode = 1
 		}
+	}
+
+	if a.expiryWorker != nil {
+		go a.expiryWorker.Run(a.ctx)
 	}
 
 	// grpc server

@@ -59,6 +59,7 @@ type ListReq struct {
 
 	Ids              *[]string
 	VenueId          *string
+	VenueIds         *[]string
 	ResourceId       *string
 	UserId           *string
 	SessionId        *string
@@ -73,6 +74,16 @@ type ListReq struct {
 
 type GetReq struct {
 	Id string
+}
+
+type ConfirmReq struct {
+	Id              string
+	PaymentIntentId *string
+}
+
+type CancelReq struct {
+	Id     string
+	Reason *string
 }
 
 type StatsReq struct {

@@ -10,6 +10,8 @@ var allowedSortFields = map[string]string{
 	"created_at": "created_at",
 	"updated_at": "updated_at",
 	"status":     "status",
+	"start_at":   "start_at",
+	"end_at":     "end_at",
 }
 
 func (r *Repo) getConditions(pars *model.ListReq) (map[string]any, map[string][]any) {
@@ -19,7 +21,9 @@ func (r *Repo) getConditions(pars *model.ListReq) (map[string]any, map[string][]
 	if pars.Ids != nil {
 		conditions["id"] = pars.Ids
 	}
-	if pars.VenueId != nil {
+	if pars.VenueIds != nil && len(*pars.VenueIds) > 0 {
+		conditions["venue_id"] = *pars.VenueIds
+	} else if pars.VenueId != nil {
 		conditions["venue_id"] = *pars.VenueId
 	}
 	if pars.ResourceId != nil {

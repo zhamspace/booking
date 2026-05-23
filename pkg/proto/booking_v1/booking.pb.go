@@ -233,8 +233,10 @@ type BookingListReq struct {
 	From             *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=from,proto3,oneof" json:"from,omitempty"`
 	To               *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=to,proto3,oneof" json:"to,omitempty"`
 	IncludeCancelled bool                   `protobuf:"varint,11,opt,name=include_cancelled,json=includeCancelled,proto3" json:"include_cancelled,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// * When non-empty, restricts list to these venues (OR). Takes precedence over venue_id.
+	VenueIds      []string `protobuf:"bytes,12,rep,name=venue_ids,json=venueIds,proto3" json:"venue_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BookingListReq) Reset() {
@@ -342,6 +344,13 @@ func (x *BookingListReq) GetIncludeCancelled() bool {
 		return x.IncludeCancelled
 	}
 	return false
+}
+
+func (x *BookingListReq) GetVenueIds() []string {
+	if x != nil {
+		return x.VenueIds
+	}
+	return nil
 }
 
 type BookingListRep struct {
@@ -942,7 +951,7 @@ const file_booking_v1_booking_proto_rawDesc = "" +
 	"\x0e_cancel_reasonB\x0f\n" +
 	"\r_cancelled_atB\x0f\n" +
 	"\r_confirmed_atB\x0f\n" +
-	"\r_completed_at\"\xa3\x04\n" +
+	"\r_completed_at\"\xc0\x04\n" +
 	"\x0eBookingListReq\x125\n" +
 	"\vlist_params\x18\x01 \x01(\v2\x14.common.ListParamsStR\n" +
 	"listParams\x12\x10\n" +
@@ -958,7 +967,8 @@ const file_booking_v1_booking_proto_rawDesc = "" +
 	"\x04from\x18\t \x01(\v2\x1a.google.protobuf.TimestampH\x06R\x04from\x88\x01\x01\x12/\n" +
 	"\x02to\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampH\aR\x02to\x88\x01\x01\x12+\n" +
-	"\x11include_cancelled\x18\v \x01(\bR\x10includeCancelledB\v\n" +
+	"\x11include_cancelled\x18\v \x01(\bR\x10includeCancelled\x12\x1b\n" +
+	"\tvenue_ids\x18\f \x03(\tR\bvenueIdsB\v\n" +
 	"\t_venue_idB\x0e\n" +
 	"\f_resource_idB\n" +
 	"\n" +

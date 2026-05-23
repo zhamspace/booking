@@ -225,6 +225,83 @@ func (u Usecase) countActiveOverlaps(ctx context.Context, venueID, resourceID st
 	return totalCount, nil
 }
 
+func (u Usecase) Confirm(ctx context.Context, req *bookingModel.ConfirmReq) (*bookingModel.Main, error) {
+	item, _, err := u.bookingService.Get(ctx, &bookingModel.GetReq{Id: req.Id}, true)
+	if err != nil {
+		return nil, errs.Wrap(errs.ServiceNA, "failed get booking", nil, err)
+	}
+	if item.Status != bookingConstants.StatusCreated {
+		return nil, errs.WithStatus(errs.InvalidRequest, "booking cannot be confirmed in current status",
+			map[string]string{"status": item.Status}, codes.FailedPrecondition, http.StatusUnprocessableEntity)
+	}
+
+	now := time.Now().UTC()
+	statusConfirmed := bookingConstants.StatusConfirmed
+	paymentStatusPaid := bookingConstants.PaymentStatusPaid
+	edit := &bookingModel.Edit{
+		Status:          &statusConfirmed,
+		PaymentStatus:   &paymentStatusPaid,
+		UpdatedAt:       &now,
+		ConfirmedAt:     &now,
+		PaymentIntentId: req.PaymentIntentId,
+	}
+
+	if err := u.bookingService.Update(ctx, &bookingModel.GetReq{Id: req.Id}, edit); err != nil {
+		return nil, errs.Wrap(errs.ServiceNA, "failed confirm booking", nil, err)
+	}
+
+	updated, _, _ := u.bookingService.Get(ctx, &bookingModel.GetReq{Id: req.Id}, true)
+	u.auditService.Log(ctx, &auditModel.Job{
+		ChangeType: auditConstants.ChangeTypeUpdate,
+		Resource:   auditConstants.ResourceBooking,
+		ObjectId:   req.Id,
+		Object:     updated,
+	})
+	return updated, nil
+}
+
+func (u Usecase) Cancel(ctx context.Context, req *bookingModel.CancelReq) (*bookingModel.Main, error) {
+	item, _, err := u.bookingService.Get(ctx, &bookingModel.GetReq{Id: req.Id}, true)
+	if err != nil {
+		return nil, errs.Wrap(errs.ServiceNA, "failed get booking", nil, err)
+	}
+	if item.Status == bookingConstants.StatusCancelled || item.Status == bookingConstants.StatusCompleted {
+		return nil, errs.WithStatus(errs.InvalidRequest, "booking cannot be cancelled in current status",
+			map[string]string{"status": item.Status}, codes.FailedPrecondition, http.StatusUnprocessableEntity)
+	}
+
+	now := time.Now().UTC()
+	statusCancelled := bookingConstants.StatusCancelled
+	edit := &bookingModel.Edit{
+		Status:      &statusCancelled,
+		UpdatedAt:   &now,
+		CancelledAt: &now,
+	}
+	if req.Reason != nil {
+		edit.CancelReason = req.Reason
+	}
+
+	if err := u.bookingService.Update(ctx, &bookingModel.GetReq{Id: req.Id}, edit); err != nil {
+		return nil, errs.Wrap(errs.ServiceNA, "failed cancel booking", nil, err)
+	}
+
+	updated, _, _ := u.bookingService.Get(ctx, &bookingModel.GetReq{Id: req.Id}, true)
+	u.auditService.Log(ctx, &auditModel.Job{
+		ChangeType: auditConstants.ChangeTypeUpdate,
+		Resource:   auditConstants.ResourceBooking,
+		ObjectId:   req.Id,
+		Object:     updated,
+	})
+	return updated, nil
+}
+
+func (u Usecase) UpdatePaymentStatus(ctx context.Context, bookingId string, paymentStatus *string, now *time.Time) error {
+	return u.bookingService.Update(ctx, &bookingModel.GetReq{Id: bookingId}, &bookingModel.Edit{
+		PaymentStatus: paymentStatus,
+		UpdatedAt:     now,
+	})
+}
+
 func (u Usecase) Stats(ctx context.Context, req *bookingModel.StatsReq) (*bookingModel.StatsRep, error) {
 	if req == nil {
 		return nil, errs.New(errs.InvalidConfig, "stats params are required", nil)
