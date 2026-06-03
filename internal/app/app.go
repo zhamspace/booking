@@ -30,6 +30,7 @@ import (
 	// service
 	serviceAcocuntP "github.com/zhamspace/booking/internal/service/account"
 	serviceAuditCodecP "github.com/zhamspace/booking/internal/service/auditcodec"
+	serviceSessionP "github.com/zhamspace/booking/internal/service/session"
 	serviceCommandP "github.com/zhamspace/booking/internal/service/system/command"
 	serviceMigrationP "github.com/zhamspace/booking/internal/service/system/migration"
 
@@ -89,8 +90,9 @@ func (a *App) Init() {
 		handlerBooking *handlerGrpcP.Booking
 		handlerDict    *handlerGrpcP.Dict
 
-		handlerHttpSystem   *handlerHttpP.System
-		handlerHttpInternal *handlerHttpP.Internal
+		handlerHttpSystem       *handlerHttpP.System
+		handlerHttpInternal     *handlerHttpP.Internal
+		handlerHttpReservations *handlerHttpP.Reservations
 	)
 
 	var bookingUsecase *usecaseBookingP.Usecase
@@ -176,6 +178,7 @@ func (a *App) Init() {
 		bookingUsecase = usecaseBookingP.New(domainAuditService, domainBookingService)
 		handlerBooking = handlerGrpcP.NewBooking(bookingUsecase)
 		handlerHttpInternal = handlerHttpP.NewInternal(bookingUsecase)
+		handlerHttpReservations = handlerHttpP.NewReservations(bookingUsecase, serviceSessionP.New(config.Conf.SessionHttpUrl))
 		a.expiryWorker = expiryWorkerP.New(domainBookingService, 60*time.Second)
 	}
 
@@ -213,23 +216,26 @@ func (a *App) Init() {
 				booking_v1.RegisterDictHandler,
 			},
 			[]HttpRoute{
-			{Method: http.MethodGet, Path: "/system/ping", Handler: func(w http.ResponseWriter, _ *http.Request, _ map[string]string) {
-				w.WriteHeader(http.StatusOK)
-				_, _ = io.Copy(w, bytes.NewReader([]byte("pong")))
-			}},
-			{Method: http.MethodGet, Path: "/system/migration/up", Handler: handlerHttpSystem.MigrationUp},
-			{Method: http.MethodGet, Path: "/system/migration/down/one", Handler: handlerHttpSystem.MigrationDownOne},
-			{Method: http.MethodGet, Path: "/system/cmd/{num}", Handler: handlerHttpSystem.Command},
-			{Method: http.MethodPost, Path: "/system/log/level", Handler: handlerHttpSystem.SetLogLevel},
-			{Method: http.MethodPost, Path: "/system/log/policy", Handler: handlerHttpSystem.UpdateLogPolicy},
-			{Method: http.MethodDelete, Path: "/system/log/policy/{method}", Handler: handlerHttpSystem.DeleteLogPolicy},
-			{Method: http.MethodPost, Path: "/system/log/default", Handler: handlerHttpSystem.UpdateDefaultLogPolicy},
-			// Internal routes — called by payment service on internal Docker network, no JWT
-			{Method: http.MethodGet, Path: "/internal/bookings/stats", Handler: handlerHttpInternal.Stats},
-			{Method: http.MethodGet, Path: "/internal/bookings/{id}", Handler: handlerHttpInternal.GetBooking},
-			{Method: http.MethodPost, Path: "/internal/bookings/{id}/mark-paid", Handler: handlerHttpInternal.MarkPaid},
-			{Method: http.MethodPost, Path: "/internal/bookings/{id}/mark-failed", Handler: handlerHttpInternal.MarkFailed},
-		})
+				{Method: http.MethodGet, Path: "/system/ping", Handler: func(w http.ResponseWriter, _ *http.Request, _ map[string]string) {
+					w.WriteHeader(http.StatusOK)
+					_, _ = io.Copy(w, bytes.NewReader([]byte("pong")))
+				}},
+				{Method: http.MethodGet, Path: "/system/migration/up", Handler: handlerHttpSystem.MigrationUp},
+				{Method: http.MethodGet, Path: "/system/migration/down/one", Handler: handlerHttpSystem.MigrationDownOne},
+				{Method: http.MethodGet, Path: "/system/cmd/{num}", Handler: handlerHttpSystem.Command},
+				{Method: http.MethodPost, Path: "/system/log/level", Handler: handlerHttpSystem.SetLogLevel},
+				{Method: http.MethodPost, Path: "/system/log/policy", Handler: handlerHttpSystem.UpdateLogPolicy},
+				{Method: http.MethodDelete, Path: "/system/log/policy/{method}", Handler: handlerHttpSystem.DeleteLogPolicy},
+				{Method: http.MethodPost, Path: "/system/log/default", Handler: handlerHttpSystem.UpdateDefaultLogPolicy},
+				{Method: http.MethodGet, Path: "/reservations", Handler: handlerHttpReservations.List},
+				// Internal routes — called by payment service on internal Docker network, no JWT
+				{Method: http.MethodGet, Path: "/internal/booking-stats", Handler: handlerHttpInternal.Stats},
+				{Method: http.MethodGet, Path: "/internal/bookings-occupied", Handler: handlerHttpInternal.ListOccupied},
+				{Method: http.MethodGet, Path: "/internal/bookings/{id}", Handler: handlerHttpInternal.GetBooking},
+				{Method: http.MethodPost, Path: "/internal/bookings/{id}/mark-paid", Handler: handlerHttpInternal.MarkPaid},
+				{Method: http.MethodPost, Path: "/internal/bookings/{id}/mark-failed", Handler: handlerHttpInternal.MarkFailed},
+				{Method: http.MethodPost, Path: "/internal/bookings/{id}/mark-refunded", Handler: handlerHttpInternal.MarkRefunded},
+			})
 		errCheck(err, "NewGrpcGwServer")
 	}
 }

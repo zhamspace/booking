@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"strings"
+
 	bookingConstants "github.com/zhamspace/booking/internal/domain/booking/constants"
 	"github.com/zhamspace/booking/internal/domain/booking/model"
 )
@@ -34,6 +36,9 @@ func (r *Repo) getConditions(pars *model.ListReq) (map[string]any, map[string][]
 	}
 	if pars.SessionId != nil {
 		conditions["session_id"] = *pars.SessionId
+	}
+	if pars.ExcludeSessionID != nil && strings.TrimSpace(*pars.ExcludeSessionID) != "" {
+		conditionExps["(session_id is null or session_id <> ?)"] = []any{strings.TrimSpace(*pars.ExcludeSessionID)}
 	}
 	if pars.Status != nil {
 		conditions["status"] = *pars.Status

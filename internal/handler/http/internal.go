@@ -92,7 +92,39 @@ func (h *Internal) MarkFailed(w http.ResponseWriter, r *http.Request, pathParams
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GET /internal/bookings/stats?venue_ids=id1,id2&from=RFC3339&to=RFC3339
+// POST /internal/bookings/{id}/mark-refunded
+// Body: {"payment_intent_id": "pi_mock_...", "refund_id": "rf_mock_..."}
+func (h *Internal) MarkRefunded(w http.ResponseWriter, r *http.Request, pathParams map[string]string) {
+	id := strings.TrimSpace(pathParams["id"])
+	if id == "" {
+		errorResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	var body struct {
+		PaymentIntentId string `json:"payment_intent_id"`
+		RefundId        string `json:"refund_id"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		errorResponse(w, 0, err)
+		return
+	}
+	if strings.TrimSpace(body.PaymentIntentId) == "" || strings.TrimSpace(body.RefundId) == "" {
+		errorResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	now := time.Now().UTC()
+	paymentStatusRefunded := bookingConstants.PaymentStatusRefunded
+	if err := h.bookingUsecase.UpdatePaymentStatus(r.Context(), id, &paymentStatusRefunded, &now); err != nil {
+		errorResponse(w, 0, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GET /internal/booking-stats?venue_ids=id1,id2&from=RFC3339&to=RFC3339
 // Internal — same aggregates as public /bookings/stats, for trusted services (e.g. payment).
 func (h *Internal) Stats(w http.ResponseWriter, r *http.Request, _ map[string]string) {
 	raw := strings.TrimSpace(r.URL.Query().Get("venue_ids"))
@@ -160,4 +192,61 @@ func (h *Internal) Stats(w http.ResponseWriter, r *http.Request, _ map[string]st
 		"bookings_by_day":    bookingsByDay,
 		"revenue_by_day":     revenueByDay,
 	})
+}
+
+// GET /internal/bookings-occupied?venue_id=&resource_id=&from=RFC3339&to=RFC3339
+// Returns active booking intervals for schedule-result / availability UIs.
+func (h *Internal) ListOccupied(w http.ResponseWriter, r *http.Request, _ map[string]string) {
+	venueID := strings.TrimSpace(r.URL.Query().Get("venue_id"))
+	if venueID == "" {
+		errorResponse(w, http.StatusBadRequest, nil)
+		return
+	}
+
+	var resourceID *string
+	if v := strings.TrimSpace(r.URL.Query().Get("resource_id")); v != "" {
+		resourceID = &v
+	}
+	var excludeSessionID *string
+	if v := strings.TrimSpace(r.URL.Query().Get("exclude_session_id")); v != "" {
+		excludeSessionID = &v
+	}
+
+	var from, to *time.Time
+	if v := strings.TrimSpace(r.URL.Query().Get("from")); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			errorResponse(w, http.StatusBadRequest, nil)
+			return
+		}
+		tu := t.UTC()
+		from = &tu
+	}
+	if v := strings.TrimSpace(r.URL.Query().Get("to")); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			errorResponse(w, http.StatusBadRequest, nil)
+			return
+		}
+		tu := t.UTC()
+		to = &tu
+	}
+
+	items, err := h.bookingUsecase.ListOccupied(r.Context(), venueID, resourceID, from, to, excludeSessionID)
+	if err != nil {
+		errorResponse(w, 0, err)
+		return
+	}
+
+	slots := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		slots = append(slots, map[string]any{
+			"resource_id": item.ResourceID,
+			"start_at":    item.StartAt.Format(time.RFC3339),
+			"end_at":      item.EndAt.Format(time.RFC3339),
+			"source":      item.Source,
+			"status":      "active",
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": slots})
 }

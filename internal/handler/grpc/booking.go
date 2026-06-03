@@ -112,8 +112,9 @@ func (h *Booking) Confirm(ctx context.Context, req *booking_v1.BookingConfirmReq
 
 func (h *Booking) Cancel(ctx context.Context, req *booking_v1.BookingCancelReq) (*booking_v1.BookingMain, error) {
 	item, err := h.bookingUsecase.Cancel(ctx, &bookingModel.CancelReq{
-		Id:     req.Id,
-		Reason: dto.DecodeOptionalString(req.Reason),
+		Id:              req.Id,
+		Reason:          dto.DecodeOptionalString(req.Reason),
+		RefundRequested: req.RefundRequested,
 	})
 	if err != nil {
 		return nil, err

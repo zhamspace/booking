@@ -70,6 +70,7 @@ type ListReq struct {
 	To               *time.Time
 	IncludeCancelled bool
 	ActiveAt         *time.Time
+	ExcludeSessionID *string
 }
 
 type GetReq struct {
@@ -82,8 +83,9 @@ type ConfirmReq struct {
 }
 
 type CancelReq struct {
-	Id     string
-	Reason *string
+	Id              string
+	Reason          *string
+	RefundRequested *bool
 }
 
 type StatsReq struct {

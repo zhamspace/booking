@@ -144,7 +144,7 @@ func (u Usecase) Create(ctx context.Context, obj *bookingModel.Edit) (*bookingMo
 		return nil, errs.Validation(fields)
 	}
 
-	overlapCount, err := u.countActiveOverlaps(ctx, venueID, resourceID, obj.StartAt, obj.EndAt, now)
+	overlapCount, err := u.countActiveOverlaps(ctx, venueID, resourceID, obj.StartAt, obj.EndAt, now, normalizeOptionalString(obj.SessionId))
 	if err != nil {
 		fields["method"] = "bookingService.List"
 		return nil, errs.Wrap(errs.ServiceNA, "failed availability check", fields, err)
@@ -187,6 +187,21 @@ func (u Usecase) Create(ctx context.Context, obj *bookingModel.Edit) (*bookingMo
 		PaymentIntentId: normalizeOptionalString(obj.PaymentIntentId),
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "booking_no_active_resource_overlap") {
+			return nil, errs.WithStatus(
+				errs.InvalidRequest,
+				"booking time slot is unavailable",
+				map[string]string{
+					"venue_id":    venueID,
+					"resource_id": resourceID,
+					"start_at":    obj.StartAt.Format(time.RFC3339),
+					"end_at":      obj.EndAt.Format(time.RFC3339),
+					"reason":      "resource already has an active booking for selected time range",
+				},
+				codes.Aborted,
+				http.StatusConflict,
+			)
+		}
 		fields["method"] = "bookingService.Create"
 		return nil, errs.Wrap(errs.ServiceNA, "failed create booking", fields, err)
 	}
@@ -207,16 +222,83 @@ func (u Usecase) Create(ctx context.Context, obj *bookingModel.Edit) (*bookingMo
 	return item, nil
 }
 
-func (u Usecase) countActiveOverlaps(ctx context.Context, venueID, resourceID string, startAt, endAt *time.Time, activeAt time.Time) (int64, error) {
+type OccupiedSlot struct {
+	ResourceID string
+	StartAt    time.Time
+	EndAt      time.Time
+	Source     string
+}
+
+func (u Usecase) ListOccupied(ctx context.Context, venueID string, resourceID *string, from, to *time.Time, excludeSessionID *string) ([]*OccupiedSlot, error) {
+	venueID = strings.TrimSpace(venueID)
+	if venueID == "" {
+		return nil, errs.Validation(map[string]string{"venue_id": "required"})
+	}
+	if from != nil && to != nil && from.After(*to) {
+		return nil, errs.Validation(map[string]string{"to": "must be greater than or equal to from"})
+	}
+
+	now := time.Now().UTC()
+	out := make([]*OccupiedSlot, 0)
+	page := int64(0)
+	var fetched int64
+
+	for {
+		items, totalCount, err := u.bookingService.List(ctx, &bookingModel.ListReq{
+			ListParams: commonModel.ListParams{
+				Page:           page,
+				PageSize:       constant.MaxPageSize,
+				WithTotalCount: true,
+			},
+			VenueId:          &venueID,
+			ResourceId:       resourceID,
+			From:             from,
+			To:               to,
+			ActiveAt:         &now,
+			ExcludeSessionID: excludeSessionID,
+		})
+		if err != nil {
+			return nil, errs.Wrap(errs.ServiceNA, "failed to list occupied slots", map[string]string{
+				"method": "bookingService.List",
+			}, err)
+		}
+
+		for _, item := range items {
+			if item.StartAt == nil || item.EndAt == nil {
+				continue
+			}
+			source := "booking"
+			if item.SessionId != nil && strings.TrimSpace(*item.SessionId) != "" {
+				source = "session"
+			}
+			out = append(out, &OccupiedSlot{
+				ResourceID: item.ResourceId,
+				StartAt:    item.StartAt.UTC(),
+				EndAt:      item.EndAt.UTC(),
+				Source:     source,
+			})
+		}
+		fetched += int64(len(items))
+		if len(items) == 0 || fetched >= totalCount {
+			break
+		}
+		page++
+	}
+
+	return out, nil
+}
+
+func (u Usecase) countActiveOverlaps(ctx context.Context, venueID, resourceID string, startAt, endAt *time.Time, activeAt time.Time, excludeSessionID *string) (int64, error) {
 	_, totalCount, err := u.bookingService.List(ctx, &bookingModel.ListReq{
 		ListParams: commonModel.ListParams{
 			OnlyCount: true,
 		},
-		VenueId:    &venueID,
-		ResourceId: &resourceID,
-		From:       startAt,
-		To:         endAt,
-		ActiveAt:   &activeAt,
+		VenueId:          &venueID,
+		ResourceId:       &resourceID,
+		From:             startAt,
+		To:               endAt,
+		ActiveAt:         &activeAt,
+		ExcludeSessionID: excludeSessionID,
 	})
 	if err != nil {
 		return 0, err

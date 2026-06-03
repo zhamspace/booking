@@ -23,6 +23,7 @@ var Conf = struct {
 	AccountGrpcUsername string `env:"ACCOUNT_GRPC_USERNAME"`
 	AccountGrpcPassword string `env:"ACCOUNT_GRPC_PASSWORD"`
 	AccountHttpUrl      string `env:"ACCOUNT_HTTP_URL"`
+	SessionHttpUrl      string `env:"SESSION_HTTP_URL" envDefault:"http://session:80"`
 }{}
 
 func init() {

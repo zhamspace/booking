@@ -10,9 +10,10 @@ const (
 )
 
 const (
-	PaymentStatusPending string = "pending"
-	PaymentStatusPaid    string = "paid"
-	PaymentStatusFailed  string = "failed"
+	PaymentStatusPending  string = "pending"
+	PaymentStatusPaid     string = "paid"
+	PaymentStatusFailed   string = "failed"
+	PaymentStatusRefunded string = "refunded"
 )
 
 const (
